@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dcdclip.keyboard.backend_x11 import X11_KEYCODES
+from dcdclip.keyboard.keycodes_x11 import X11_KEYCODES
 
 # Keys that use the 0xE0 prefix (KEYEVENTF_EXTENDEDKEY) and whose scan code differs
 # from the evdev value.

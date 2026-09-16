@@ -1,8 +1,8 @@
 """The Windows and macOS key tables must cover every key the layouts and planner use."""
 
-from dcdclip.keyboard.backend_x11 import X11_KEYCODES
 from dcdclip.keyboard.keycodes_mac import MAC_KEYCODES, code_for_hotkey_name
 from dcdclip.keyboard.keycodes_win import EXTENDED, scancode_for_code
+from dcdclip.keyboard.keycodes_x11 import X11_KEYCODES
 from dcdclip.keyboard.layouts import LAYOUTS
 from dcdclip.keyboard.model import Mod, char_for_keysym, keysym_for_char
 from dcdclip.windows.hotkey_spec import parse_hotkey_spec
