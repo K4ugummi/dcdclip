@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import sys
 import time
 
 from PIL import Image
 from PySide6.QtCore import QRect, Qt, QTimer
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtGui import QGuiApplication, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -47,6 +48,24 @@ from dcdclip.platform import Backends
 from dcdclip.windows.base import Rect, WindowInfo, matches_filter
 
 
+def _to_physical(rect: QRect) -> Rect:
+    """Qt global (logical) coordinates -> screen capture coordinates.
+
+    mss captures physical pixels on Linux/Windows but points on macOS, so only the former
+    need scaling by the device pixel ratio.
+    """
+    if sys.platform == "darwin":
+        return Rect(rect.x(), rect.y(), rect.width(), rect.height())
+    screen = QGuiApplication.screenAt(rect.center()) or QGuiApplication.primaryScreen()
+    dpr = screen.devicePixelRatio() if screen else 1.0
+    return Rect(
+        round(rect.x() * dpr),
+        round(rect.y() * dpr),
+        round(rect.width() * dpr),
+        round(rect.height() * dpr),
+    )
+
+
 def _pil_to_pixmap(img: Image.Image) -> QPixmap:
     rgb = img.convert("RGB")
     data = rgb.tobytes("raw", "RGB")
@@ -78,6 +97,8 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self.refresh_windows()
         self._apply_hotkeys()
+        if backends.notes:
+            self._set_status(" ".join(backends.notes))
 
     # ------------------------------------------------------------------ UI construction
     def _build_ui(self) -> None:
@@ -590,7 +611,7 @@ class MainWindow(QMainWindow):
 
     def _region_selected(self, rect: QRect) -> None:
         self._selector = None
-        self._last_region = Rect(rect.x(), rect.y(), rect.width(), rect.height())
+        self._last_region = _to_physical(rect)
         self.recapture_button.setEnabled(True)
         QTimer.singleShot(150, lambda: self._capture_and_ocr(self._last_region))
 

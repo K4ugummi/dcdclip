@@ -21,8 +21,8 @@ It is a normal desktop application, no browser extension, no changes on the VM.
 | Platform | State |
 | --- | --- |
 | Linux (X11) | Working. |
-| Windows | Build exists, backend not implemented yet: the app starts and says so. |
-| macOS | Same as Windows. |
+| Windows | Experimental: implemented with `SendInput` and `RegisterHotKey`, needs testers. |
+| macOS | Experimental: implemented with Quartz events; grant **Accessibility** (typing, hotkeys) and **Screen Recording** (window titles, OCR capture) permissions to `dcdclip.app`. Needs testers. |
 | Linux (Wayland) | Not planned; needs uinput. Log in to an X11 session. |
 
 Release candidates are published as portable archives under
@@ -116,8 +116,10 @@ dcdclip ──XTEST key events──▶ X server ──▶ browser ──▶ DCD
 
 - Physical keys are named by their W3C `KeyboardEvent.code` (`KeyY`, `Digit7`, ...). A guest
   layout maps each character to a physical key plus modifiers, dead keys get a trailing Space.
-- On Linux the key presses are generated with the X11 XTEST extension, the console window is
-  focused via EWMH, and hotkeys use `XGrabKey`.
+- Linux: key presses via the X11 XTEST extension, window focus via EWMH, hotkeys via `XGrabKey`.
+  Windows: `SendInput` scan codes, `EnumWindows`/`SetForegroundWindow`, `RegisterHotKey`.
+  macOS: `CGEventPost` key codes, `CGWindowList` plus Accessibility raise, a `CGEventTap`
+  for hotkeys.
 - OCR: screenshot with `mss`, grayscale and 2x upscale, Tesseract with word boxes, then the
   text is rebuilt from the box positions so monospace columns stay aligned.
 
@@ -134,11 +136,16 @@ calibration procedure is in [`docs/console-calibration.md`](docs/console-calibra
 
 ## Roadmap
 
-1. Windows backend (`SendInput`, `win32gui`) and macOS backend (Quartz events, Accessibility
-   permission), then the placeholder builds become real.
+1. Verify the Windows and macOS backends on real machines (run `dcdclip --check` first, it
+   prints what the backend sees without typing anything).
 2. Unicode fallbacks for characters missing on the guest layout.
 3. Named profiles per VM (e.g. "Windows DE", "Linux US").
 4. Second OCR engine (RapidOCR) if Tesseract's error rate is too high on GUI screens.
+
+### Diagnostics
+
+`dcdclip --check` prints the platform backends, permission notes and the windows it can see,
+without starting the GUI or sending a single key. Include its output in bug reports.
 
 ## Development
 

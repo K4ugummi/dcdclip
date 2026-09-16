@@ -22,3 +22,11 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest -q
+      - name: Backend diagnostics (Linux, virtual X server)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb
+          xvfb-run -a python -m dcdclip --check
+      - name: Backend diagnostics (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: python -m dcdclip --check

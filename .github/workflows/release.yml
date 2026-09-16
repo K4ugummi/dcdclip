@@ -55,7 +55,9 @@ jobs:
 
       - name: Smoke test (macOS)
         if: runner.os == 'macOS'
-        run: ./dist/dcdclip.app/Contents/MacOS/dcdclip --version
+        run: |
+          ./dist/dcdclip.app/Contents/MacOS/dcdclip --version
+          ./dist/dcdclip.app/Contents/MacOS/dcdclip --check
 
       - name: Smoke test (Windows)
         if: runner.os == 'Windows'
@@ -101,8 +103,8 @@ jobs:
           | Platform | State |
           | --- | --- |
           | Linux x86_64 (X11) | Functional: paste-in via key emulation, OCR copy-out |
-          | Windows x86_64 | Placeholder: starts and reports "platform not supported yet" (backend not implemented) |
-          | macOS arm64 | Placeholder: same as Windows |
+          | Windows x86_64 | Experimental: backends implemented (SendInput, RegisterHotKey), not yet verified on real hardware |
+          | macOS arm64 | Experimental: backends implemented (Quartz events, event tap); needs Accessibility and Screen Recording permissions |
 
           OCR needs Tesseract installed separately (`apt install tesseract-ocr tesseract-ocr-eng`,
           `brew install tesseract`, or the UB-Mannheim Windows installer on PATH).

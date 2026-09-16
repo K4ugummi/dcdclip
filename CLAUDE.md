@@ -25,7 +25,7 @@ text as secret: never log it, never persist it, clear it after typing (default o
 | OCR | Tesseract 5 via `pytesseract` behind an `OcrEngine` interface | Offline, proven on monospace text. User has no preference; if accuracy on GUI screens is poor, add RapidOCR (pip-only ONNX, easier to ship on macOS/Windows) as a second engine. |
 | Packaging | `pyproject.toml` (setuptools), venv in `.venv/`, `uv` for installs | The dev host lacks `python3-venv` and blocks `pip --user` (PEP 668); the standalone `uv` in `~/.local/bin` sidesteps both. |
 | Quality | `ruff` (lint+format, line length 100), `pytest`, `mypy` (lenient) | Layout/planner logic is unit-tested without an X server. |
-| Platforms | Linux/X11 first (dev host: Cinnamon on X11, host layout `de`), then Windows and macOS | Required by the user. All OS-specific code sits behind `KeyboardBackend` / `WindowBackend` protocols; `dcdclip/platform.py` selects the backend. Wayland is not planned (would need uinput). |
+| Platforms | Linux/X11 (dev host: Cinnamon on X11, host layout `de`), Windows (ctypes: `SendInput`, `EnumWindows`, `RegisterHotKey`), macOS (pyobjc: Quartz `CGEventPost`, `CGWindowList`, AX raise, `CGEventTap`) | Required by the user. All OS-specific code sits behind `KeyboardBackend` / `WindowBackend` protocols; `dcdclip/platform.py` selects them. Windows/macOS were written without hardware access: CI runs `dcdclip --check` on both runners (imports, window enumeration), real typing is unverified. Wayland is not planned (would need uinput). |
 | License | MIT (`LICENSE`), repo public | User wants open source; MIT is the simplest permissive option and compatible with PySide6 (LGPL). |
 | Browser extension | No | Rejected by the user; the tool must stay an OS-level application. |
 | Guest OSes | Windows and Linux (RHEL family, Ubuntu). | Layout differs per VM; select the guest layout per VM. |
@@ -46,10 +46,19 @@ dcdclip/
     planner.py           text -> TypePlan of KeyTap/Unsupported; transports, newline/tab/indent policies
     backend.py           KeyboardBackend protocol
     backend_x11.py       XTEST implementation, evdev keycode table, spare-keycode remap
+    backend_win.py       SendInput (scan codes for physical keys, KEYEVENTF_UNICODE for keysyms)
+    backend_mac.py       Quartz CGEventPost (virtual key codes / unicode string events)
+    keycodes_win.py      scan code table (= evdev code except extended keys); VK table
+    keycodes_mac.py      kVK_* table; hotkey key names
   windows/
     base.py              WindowInfo, Rect, WindowBackend protocol, matches_filter()
     x11.py               EWMH list/activate/geometry
-    hotkeys_x11.py       XGrabKey listener thread, parse_hotkey("ctrl+alt+v")
+    win32.py             EnumWindows/SetForegroundWindow/GetClientRect (per-monitor DPI aware)
+    macos.py             CGWindowListCopyWindowInfo, NSRunningApplication activate, AX raise
+    hotkey_spec.py       shared "ctrl+alt+v" parser
+    hotkeys_x11.py       XGrabKey listener thread
+    hotkeys_win.py       RegisterHotKey + message loop thread
+    hotkeys_mac.py       listen-only CGEventTap thread
   ocr/
     capture.py           mss region capture -> PIL
     preprocess.py        grayscale, auto-invert dark terminals, upscale, Otsu threshold
@@ -136,6 +145,23 @@ Manual checks: `wmctrl -lx` (windows), `xev -event keyboard` (host keycodes/keys
 `setxkbmap -query` (host layout). To test typing without touching a VM, target any local
 text editor window from the picker (un-filter the list).
 
+### Platform specifics
+
+- Coordinates: X11 and Windows capture in physical pixels, Qt reports logical ones, so
+  `gui.main_window._to_physical` scales by the device pixel ratio; macOS uses points in both.
+  Windows sets per-monitor-v2 DPI awareness in `win32.Win32Windows`.
+- Windows foreground rule: `SetForegroundWindow` only works for the process with the last
+  input; the backend taps Alt via `keybd_event` first (documented workaround).
+- Windows keysym transport sends `KEYEVENTF_UNICODE`; AltGr characters with `force_remap`
+  rely on right-Alt being held around the unicode event (unverified).
+- macOS: Accessibility permission for `CGEventPost` and the event tap, Screen Recording for
+  other apps' window titles (`kCGWindowName`) and mss captures. `platform.create_backends`
+  puts a note in `Backends.notes` when Accessibility is missing; the GUI shows it.
+- `dcdclip --check` prints backends, notes and visible windows; CI runs it on all runners
+  (Linux under xvfb). `dcdclip --version` is the release smoke test.
+- Diagnosing Windows/macOS: ask testers for `--check` output and which characters arrived
+  wrong; do not guess fixes without that data.
+
 ## Packaging and release
 
 - `packaging/dcdclip.spec` (PyInstaller, onedir; `.app` bundle on macOS). Local build:
@@ -147,11 +173,12 @@ text editor window from the picker (un-filter the list).
 - Version lives in `pyproject.toml` **and** `dcdclip/__init__.py`; bump both, then tag.
 - GitHub: `K4ugummi/dcdclip` (public, MIT license). `gh` is a portable binary in `~/.local/bin`; it is not
   logged in, use `GH_TOKEN` from the git credential store in-process when needed.
-- Windows/macOS archives are placeholders until `KeyboardBackend`/`WindowBackend`
-  implementations for those platforms exist (`platform.create_backends` raises a clear error).
+- Windows/macOS archives are experimental until someone verifies typing on real hardware.
 
 ## Status
 
+- 2026-09-16: Windows and macOS backends implemented blind (see Platform specifics), CI runs
+  `--check` on their runners.
 - 2026-09-16: first vertical slice implemented (Linux/X11): window picker, typing with
   countdown/hotkeys/abort, layouts `us`/`de`/`de-nodeadkeys`, OCR tab with window/region
   capture, settings persistence. Unit tests green. The console uses physical key codes;

@@ -7,30 +7,21 @@ from collections.abc import Callable
 
 from Xlib import XK, X, display
 
+from dcdclip.windows.hotkey_spec import parse_hotkey_spec
+
 _MOD_MASKS = {
     "ctrl": X.ControlMask,
-    "control": X.ControlMask,
     "shift": X.ShiftMask,
     "alt": X.Mod1Mask,
     "super": X.Mod4Mask,
-    "win": X.Mod4Mask,
-    "meta": X.Mod4Mask,
 }
 _IGNORED_MASKS = (0, X.LockMask, X.Mod2Mask, X.LockMask | X.Mod2Mask)  # CapsLock, NumLock
 
 
 def parse_hotkey(spec: str) -> tuple[int, str]:
     """``"ctrl+alt+v"`` -> (modifier mask, keysym name)."""
-    parts = [p.strip().lower() for p in spec.split("+") if p.strip()]
-    if not parts:
-        raise ValueError("empty hotkey")
-    mask = 0
-    for part in parts[:-1]:
-        try:
-            mask |= _MOD_MASKS[part]
-        except KeyError as exc:
-            raise ValueError(f"unknown modifier {part!r} in hotkey {spec!r}") from exc
-    return mask, parts[-1]
+    parsed = parse_hotkey_spec(spec)
+    return sum(_MOD_MASKS[m] for m in parsed.mods), parsed.key
 
 
 class X11Hotkeys:

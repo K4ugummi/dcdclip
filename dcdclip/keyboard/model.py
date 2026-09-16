@@ -84,9 +84,26 @@ def keysym_for_char(char: str) -> int:
     return 0x01000000 | cp
 
 
+def char_for_keysym(keysym: int) -> str | None:
+    """Inverse of :func:`keysym_for_char` for printable characters, else ``None``."""
+    if keysym & 0x01000000:
+        return chr(keysym & 0x00FFFFFF)
+    if 0x20 <= keysym <= 0x7E or 0xA0 <= keysym <= 0xFF:
+        return chr(keysym)
+    return None
+
+
 # Well known non-character keysyms.
 XK_RETURN = 0xFF0D
 XK_TAB = 0xFF09
 XK_SPACE = 0x20
 XK_BACKSPACE = 0xFF08
 XK_ESCAPE = 0xFF1B
+
+# Non-character keysyms -> physical key names, for backends without keysym support.
+CONTROL_KEYSYM_CODES: dict[int, str] = {
+    XK_RETURN: "Enter",
+    XK_TAB: "Tab",
+    XK_BACKSPACE: "Backspace",
+    XK_ESCAPE: "Escape",
+}

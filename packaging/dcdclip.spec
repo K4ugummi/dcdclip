@@ -10,6 +10,8 @@ ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))  # noqa: F821 - SPECPATH is
 hiddenimports = ["pytesseract", "mss"]
 if sys.platform.startswith("linux"):
     hiddenimports += collect_submodules("Xlib")
+elif sys.platform == "darwin":
+    hiddenimports += ["Quartz", "AppKit", "ApplicationServices", "objc"]
 
 a = Analysis(  # noqa: F821
     [os.path.join(ROOT, "dcdclip", "__main__.py")],
