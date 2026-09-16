@@ -1,0 +1,45 @@
+[project]
+name = "dcdclip"
+version = "0.1.0"
+description = "Clipboard workaround for the IONOS DCD browser Remote Console: typing emulation in, OCR out"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Stephan Schauerte" }]
+urls = { Homepage = "https://github.com/K4ugummi/dcdclip", Issues = "https://github.com/K4ugummi/dcdclip/issues" }
+dependencies = [
+    "PySide6>=6.7",
+    "mss>=9",
+    "pillow>=10",
+    "pytesseract>=0.3.10",
+    "python-xlib>=0.33; sys_platform == 'linux'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "mypy"]
+build = ["pyinstaller>=6.10"]
+
+[project.scripts]
+dcdclip = "dcdclip.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["dcdclip*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true

@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local config / captures
+*.log
+captures/
+config.local.*
+
+# Editors
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04      # oldest LTS runner -> widest glibc compatibility
+            target: linux-x86_64
+          - os: windows-latest
+            target: windows-x86_64
+          - os: macos-latest      # Apple Silicon
+            target: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Version from tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Qt runtime libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 \
+            libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0 libegl1 libopengl0 libgl1
+
+      - run: pip install -e ".[build]"
+
+      - name: Build with PyInstaller
+        run: pyinstaller --clean --noconfirm packaging/dcdclip.spec
+
+      - name: Smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: ./dist/dcdclip/dcdclip --version
+
+      - name: Smoke test (macOS)
+        if: runner.os == 'macOS'
+        run: ./dist/dcdclip.app/Contents/MacOS/dcdclip --version
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # windowed exe: the call operator does not set $LASTEXITCODE, use Start-Process
+          $p = Start-Process -FilePath .\dist\dcdclip\dcdclip.exe -ArgumentList '--version' -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { Write-Error "exit code $($p.ExitCode)"; exit 1 }
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: tar -C dist -czf "dcdclip-${VERSION}-${{ matrix.target }}.tar.gz" dcdclip
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent dist/dcdclip.app "dcdclip-${VERSION}-${{ matrix.target }}.zip"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist\dcdclip -DestinationPath "dcdclip-$env:VERSION-${{ matrix.target }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dcdclip-${{ matrix.target }}
+          path: dcdclip-*-${{ matrix.target }}.*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Release notes
+        run: |
+          cat > notes.md <<'MD'
+          Portable builds (no installer, unsigned). Unpack and run `dcdclip` / `dcdclip.exe` / `dcdclip.app`.
+
+          | Platform | State |
+          | --- | --- |
+          | Linux x86_64 (X11) | Functional: paste-in via key emulation, OCR copy-out |
+          | Windows x86_64 | Placeholder: starts and reports "platform not supported yet" (backend not implemented) |
+          | macOS arm64 | Placeholder: same as Windows |
+
+          OCR needs Tesseract installed separately (`apt install tesseract-ocr tesseract-ocr-eng`,
+          `brew install tesseract`, or the UB-Mannheim Windows installer on PATH).
+          macOS: the app is unsigned, run `xattr -dr com.apple.quarantine dcdclip.app` once.
+          Windows: SmartScreen will warn for an unsigned executable.
+          MD
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          body_path: notes.md
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
